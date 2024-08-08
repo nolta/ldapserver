@@ -24,7 +24,7 @@ type Server struct {
 	Handler Handler
 }
 
-//NewServer return a LDAP Server
+// NewServer return a LDAP Server
 func NewServer() *Server {
 	return &Server{
 		chDone: make(chan bool),
