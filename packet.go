@@ -2,7 +2,6 @@ package ldapserver
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 
 	ldap "github.com/lor00x/goldap/message"
@@ -38,7 +37,7 @@ func (msg *messagePacket) readMessage() (m ldap.LDAPMessage, err error) {
 func decodeMessage(bytes []byte) (ret ldap.LDAPMessage, err error) {
 	defer func() {
 		if e := recover(); e != nil {
-			err = errors.New(fmt.Sprintf("%s", e))
+			err = fmt.Errorf("%s", e)
 		}
 	}()
 	zero := 0
@@ -86,7 +85,7 @@ func readTagAndLength(conn *bufio.Reader, bytes *[]byte) (ret ldap.TagAndLength,
 	//	}
 	// We are expecting the LDAP sequence tag 0x30 as first byte
 	if b != 0x30 {
-		err = fmt.Errorf("Expecting 0x30 as first byte, but got %#x instead", b)
+		err = fmt.Errorf("expecting 0x30 as first byte, but got %#x instead", b)
 		return
 	}
 
@@ -101,7 +100,7 @@ func readTagAndLength(conn *bufio.Reader, bytes *[]byte) (ret ldap.TagAndLength,
 		// Bottom 7 bits give the number of length bytes to follow.
 		numBytes := int(b & 0x7f)
 		if numBytes == 0 {
-			err = ldap.SyntaxError{"indefinite length found (not DER)"}
+			err = &ldap.SyntaxError{Msg: "indefinite length found (not DER)"}
 			return
 		}
 		ret.Length = 0
@@ -114,7 +113,7 @@ func readTagAndLength(conn *bufio.Reader, bytes *[]byte) (ret ldap.TagAndLength,
 			if ret.Length >= 1<<23 {
 				// We can't shift ret.length up without
 				// overflowing.
-				err = ldap.StructuralError{"length too large"}
+				err = &ldap.StructuralError{Msg: "length too large"}
 				return
 			}
 			ret.Length <<= 8
@@ -139,7 +138,8 @@ func readBytes(conn *bufio.Reader, bytes *[]byte, length int) (b byte, err error
 	newbytes := make([]byte, length)
 	n, err := conn.Read(newbytes)
 	if n != length {
-		fmt.Errorf("%d bytes read instead of %d", n, length)
+		err = fmt.Errorf("%d bytes read instead of %d", n, length)
+		return
 	} else if err != nil {
 		return
 	}

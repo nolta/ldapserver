@@ -43,7 +43,7 @@ func handleSearch(w ldap.ResponseWriter, m *ldap.Message) {
 	for {
 		select {
 		case <-m.Done:
-			log.Printf("Leaving handleSearch... for msgid=%d", m.MessageID)
+			log.Printf("Leaving handleSearch... for msgid=%d", m.MessageID())
 			return
 		default:
 		}
@@ -59,15 +59,10 @@ func handleSearch(w ldap.ResponseWriter, m *ldap.Message) {
 		w.Write(e)
 		time.Sleep(time.Millisecond * 800)
 	}
-
-	res := ldap.NewSearchResultDoneResponse(ldap.LDAPResultSuccess)
-	w.Write(res)
-
 }
 
 // handleBind return Success for any login/pass
 func handleBind(w ldap.ResponseWriter, m *ldap.Message) {
 	res := ldap.NewBindResponse(ldap.LDAPResultSuccess)
 	w.Write(res)
-	return
 }

@@ -224,21 +224,20 @@ func (w responseWriterImpl) Write(po ldap.ProtocolOp) {
 func (c *client) ProcessRequestMessage(message *ldap.LDAPMessage) {
 	defer c.wg.Done()
 
-	var m Message
-	m = Message{
+	m := &Message{
 		LDAPMessage: message,
 		Done:        make(chan bool, 2),
 		Client:      c,
 	}
 
-	c.registerRequest(&m)
-	defer c.unregisterRequest(&m)
+	c.registerRequest(m)
+	defer c.unregisterRequest(m)
 
 	var w responseWriterImpl
 	w.chanOut = c.chanOut
 	w.messageID = m.MessageID().Int()
 
-	c.srv.Handler.ServeLDAP(w, &m)
+	c.srv.Handler.ServeLDAP(w, m)
 }
 
 func (c *client) registerRequest(m *Message) {
