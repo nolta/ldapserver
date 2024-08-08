@@ -1,5 +1,4 @@
 [![GoDoc](https://godoc.org/github.com/nolta/ldapserver?status.svg)](https://godoc.org/github.com/nolta/ldapserver)
-[![Build Status](https://travis-ci.org/nolta/ldapserver.svg)](https://travis-ci.org/nolta/ldapserver)
 
 **This package is a work in progress.**
 
