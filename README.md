@@ -1,5 +1,5 @@
-[![GoDoc](https://godoc.org/github.com/vjeantet/ldapserver?status.svg)](https://godoc.org/github.com/vjeantet/ldapserver)
-[![Build Status](https://travis-ci.org/vjeantet/ldapserver.svg)](https://travis-ci.org/vjeantet/ldapserver)
+[![GoDoc](https://godoc.org/github.com/nolta/ldapserver?status.svg)](https://godoc.org/github.com/nolta/ldapserver)
+[![Build Status](https://travis-ci.org/nolta/ldapserver.svg)](https://travis-ci.org/nolta/ldapserver)
 
 **This package is a work in progress.**
 
@@ -35,7 +35,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	ldap "github.com/vjeantet/ldapserver"
+	ldap "github.com/nolta/ldapserver"
 )
 
 func main() {
