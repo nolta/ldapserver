@@ -32,7 +32,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"syscall"
 
 	ldap "github.com/nolta/ldapserver"
 )
@@ -51,10 +50,9 @@ func main() {
 	// listen on 10389
 	go server.ListenAndServe("127.0.0.1:10389")
 
-	// When CTRL+C, SIGINT and SIGTERM signal occurs
-	// Then stop server gracefully
-	ch := make(chan os.Signal)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+	// stop server gracefully
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, os.Interrupt)
 	<-ch
 	close(ch)
 
