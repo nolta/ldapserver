@@ -10,6 +10,7 @@ import (
 )
 
 type client struct {
+	sync.RWMutex
 	Numero      int
 	srv         *Server
 	rwc         net.Conn
@@ -19,7 +20,6 @@ type client struct {
 	wg          sync.WaitGroup
 	closing     chan bool
 	requestList map[int]*Message
-	mutex       sync.Mutex
 	writeDone   chan bool
 	rawData     []byte
 }
@@ -39,6 +39,8 @@ func (c *client) SetConn(conn net.Conn) {
 }
 
 func (c *client) GetMessageByID(messageID int) (*Message, bool) {
+	c.RLock()
+	defer c.RUnlock()
 	if requestToAbandon, ok := c.requestList[messageID]; ok {
 		return requestToAbandon, true
 	}
@@ -177,12 +179,12 @@ func (c *client) close() {
 	Logger.Printf("client %d close() - stop reading from client", c.Numero)
 
 	// signals to all currently running request processor to stop
-	c.mutex.Lock()
+	c.RLock()
 	for messageID, request := range c.requestList {
 		Logger.Printf("Client %d close() - sent abandon signal to request[messageID = %d]", c.Numero, messageID)
 		go request.Abandon()
 	}
-	c.mutex.Unlock()
+	c.RUnlock()
 	Logger.Printf("client %d close() - Abandon signal sent to processors", c.Numero)
 
 	c.wg.Wait()      // wait for all current running request processor to end
@@ -241,13 +243,13 @@ func (c *client) ProcessRequestMessage(message *ldap.LDAPMessage) {
 }
 
 func (c *client) registerRequest(m *Message) {
-	c.mutex.Lock()
+	c.Lock()
+	defer c.Unlock()
 	c.requestList[m.MessageID().Int()] = m
-	c.mutex.Unlock()
 }
 
 func (c *client) unregisterRequest(m *Message) {
-	c.mutex.Lock()
+	c.Lock()
+	defer c.Unlock()
 	delete(c.requestList, m.MessageID().Int())
-	c.mutex.Unlock()
 }
