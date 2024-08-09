@@ -62,11 +62,9 @@ func (c *client) serve() {
 	defer c.close()
 
 	c.closing = make(chan bool)
-	if onc := c.srv.OnNewConnection; onc != nil {
-		if err := onc(c.rwc); err != nil {
-			Logger.Printf("Erreur OnNewConnection: %s", err)
-			return
-		}
+	handler := c.srv.HandleConnection(c.rwc)
+	if handler == nil {
+		return
 	}
 
 	// Create the ldap response queue to be writted to client (buffered to 20)
@@ -151,7 +149,7 @@ func (c *client) serve() {
 		if req, ok := message.ProtocolOp().(ldap.ExtendedRequest); ok {
 			if req.RequestName() == NoticeOfStartTLS {
 				c.wg.Add(1)
-				c.ProcessRequestMessage(&message)
+				c.ProcessRequestMessage(handler, &message)
 				continue
 			}
 		}
@@ -159,7 +157,7 @@ func (c *client) serve() {
 		// TODO: go/non go routine choice should be done in the ProcessRequestMessage
 		// not in the client.serve func
 		c.wg.Add(1)
-		go c.ProcessRequestMessage(&message)
+		go c.ProcessRequestMessage(handler, &message)
 	}
 
 }
@@ -223,7 +221,7 @@ func (w responseWriterImpl) Write(po ldap.ProtocolOp) {
 	w.chanOut <- m
 }
 
-func (c *client) ProcessRequestMessage(message *ldap.LDAPMessage) {
+func (c *client) ProcessRequestMessage(handler Handler, message *ldap.LDAPMessage) {
 	defer c.wg.Done()
 
 	m := &Message{
@@ -239,7 +237,7 @@ func (c *client) ProcessRequestMessage(message *ldap.LDAPMessage) {
 	w.chanOut = c.chanOut
 	w.messageID = m.MessageID().Int()
 
-	c.srv.Handler.ServeLDAP(w, m)
+	handler.ServeLDAP(w, m)
 }
 
 func (c *client) registerRequest(m *Message) {

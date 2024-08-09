@@ -15,13 +15,8 @@ type Server struct {
 	wg           sync.WaitGroup // group of goroutines (1 by client)
 	chDone       chan bool      // Channel Done, value => shutdown
 
-	// OnNewConnection, if non-nil, is called on new connections.
-	// If it returns non-nil, the connection is closed.
-	OnNewConnection func(c net.Conn) error
-
-	// Handler handles ldap message received from client
-	// it SHOULD "implement" RequestHandler interface
-	Handler Handler
+	// HandleConnection is called on new connections.
+	HandleConnection func(c net.Conn) Handler
 }
 
 // NewServer return a LDAP Server
@@ -29,15 +24,6 @@ func NewServer() *Server {
 	return &Server{
 		chDone: make(chan bool),
 	}
-}
-
-// Handle registers the handler for the server.
-// If a handler already exists for pattern, Handle panics
-func (s *Server) Handle(h Handler) {
-	if s.Handler != nil {
-		panic("LDAP: multiple Handler registrations")
-	}
-	s.Handler = h
 }
 
 // ListenAndServe listens on the TCP network address s.Addr and then
@@ -67,7 +53,7 @@ func (s *Server) ListenAndServe(addr string, options ...func(*Server)) error {
 func (s *Server) serve() error {
 	defer s.Listener.Close()
 
-	if s.Handler == nil {
+	if s.HandleConnection == nil {
 		Logger.Panicln("No LDAP Request Handler defined")
 	}
 

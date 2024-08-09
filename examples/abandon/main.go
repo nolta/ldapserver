@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -18,7 +19,9 @@ func main() {
 	routes := ldap.NewRouteMux()
 	routes.Bind(handleBind)
 	routes.Search(handleSearch)
-	server.Handle(routes)
+	server.HandleConnection = func(net.Conn) ldap.Handler {
+		return routes
+	}
 
 	// listen on 10389
 	go server.ListenAndServe("127.0.0.1:10389")

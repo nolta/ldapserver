@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -57,7 +58,9 @@ func main() {
 	//Set routes, here, we only serve bindRequest
 	routes := ldap.NewRouteMux()
 	routes.Bind(handleBind)
-	server.Handle(routes)
+	server.HandleConnection = func(net.Conn) ldap.Handler {
+		return routes
+	}
 
 	//SSL
 	secureConn := func(s *ldap.Server) {

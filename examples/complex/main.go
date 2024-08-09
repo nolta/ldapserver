@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -47,7 +48,10 @@ func main() {
 	routes.Search(handleSearch).Label("Search - Generic")
 
 	//Attach routes to server
-	server.Handle(routes)
+	server.HandleConnection = func(net.Conn) ldap.Handler {
+		return routes
+	}
+
 
 	// listen on 10389 and serve
 	go server.ListenAndServe("127.0.0.1:10389")
