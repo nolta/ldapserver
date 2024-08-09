@@ -78,18 +78,16 @@ func (s *Server) ListenAndServe(addr string, options ...func(*Server)) error {
 		}
 
 		rw, err := s.Listener.Accept()
+		if err != nil {
+			s.log(err.Error())
+			continue
+		}
 
-		if s.ReadTimeout != 0 {
+		if s.ReadTimeout > 0 {
 			rw.SetReadDeadline(time.Now().Add(s.ReadTimeout))
 		}
-		if s.WriteTimeout != 0 {
+		if s.WriteTimeout > 0 {
 			rw.SetWriteDeadline(time.Now().Add(s.WriteTimeout))
-		}
-		if nil != err {
-			if opErr, ok := err.(*net.OpError); ok || opErr.Timeout() {
-				continue
-			}
-			s.log(err.Error())
 		}
 
 		i++
