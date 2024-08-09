@@ -141,21 +141,10 @@ func (h *RouteMux) ServeLDAP(w ResponseWriter, r *Message) {
 
 	//find a matching Route
 	for _, route := range h.routes {
-
-		//if the route don't match, skip it
-		if !route.Match(r) {
-			continue
+		if route.Match(r) {
+			route.handler(w, r)
+			return
 		}
-
-		if route.label != "" {
-			Logger.Printf("")
-			Logger.Printf(" ROUTE MATCH ; %s", route.label)
-			Logger.Printf("")
-			// Logger.Printf(" ROUTE MATCH ; %s", runtime.FuncForPC(reflect.ValueOf(route.handler).Pointer()).Name())
-		}
-
-		route.handler(w, r)
-		return
 	}
 
 	// Catch a AbandonRequest not handled by user

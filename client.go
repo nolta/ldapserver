@@ -105,9 +105,9 @@ func (c *client) serve() {
 		messagePacket, err := readMessagePacket(c.br)
 		if err != nil {
 			if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
-				Logger.Printf("Sorry client %d, i can not wait anymore (reading timeout) ! %s", c.Numero, err)
+				c.srv.logf("Sorry client %d, i can not wait anymore (reading timeout) ! %s", c.Numero, err)
 			} else {
-				Logger.Printf("Error readMessagePacket: %s", err)
+				c.srv.logf("Error readMessagePacket: %s", err)
 			}
 			return
 		}
@@ -116,10 +116,10 @@ func (c *client) serve() {
 		message, err := messagePacket.readMessage()
 
 		if err != nil {
-			Logger.Printf("Error reading Message : %s\n\t%x", err.Error(), messagePacket.bytes)
+			c.srv.logf("Error reading Message : %s\n\t%x", err.Error(), messagePacket.bytes)
 			continue
 		}
-		Logger.Printf("<<< %d - %s - hex=%x", c.Numero, message.ProtocolOpName(), messagePacket)
+		c.srv.logf("<<< %d - %s - hex=%x", c.Numero, message.ProtocolOpName(), messagePacket)
 
 		// TODO: Use a implementation to limit runnuning request by client
 		// solution 1 : when the buffered output channel is full, send a busy
@@ -157,36 +157,36 @@ func (c *client) serve() {
 // * close client connection
 // * signal to server that client shutdown is ok
 func (c *client) close() {
-	Logger.Printf("client %d close()", c.Numero)
+	c.srv.logf("client %d close()", c.Numero)
 	close(c.closing)
 
 	// stop reading from client
 	c.rwc.SetReadDeadline(time.Now().Add(time.Millisecond))
-	Logger.Printf("client %d close() - stop reading from client", c.Numero)
+	c.srv.logf("client %d close() - stop reading from client", c.Numero)
 
 	// signals to all currently running request processor to stop
 	c.RLock()
 	for messageID, request := range c.requestList {
-		Logger.Printf("Client %d close() - sent abandon signal to request[messageID = %d]", c.Numero, messageID)
+		c.srv.logf("Client %d close() - sent abandon signal to request[messageID = %d]", c.Numero, messageID)
 		go request.Abandon()
 	}
 	c.RUnlock()
-	Logger.Printf("client %d close() - Abandon signal sent to processors", c.Numero)
+	c.srv.logf("client %d close() - Abandon signal sent to processors", c.Numero)
 
 	c.wg.Wait()      // wait for all current running request processor to end
 	close(c.chanOut) // No more message will be sent to client, close chanOUT
-	Logger.Printf("client [%d] request processors ended", c.Numero)
+	c.srv.logf("client [%d] request processors ended", c.Numero)
 
 	<-c.writeDone // Wait for the last message sent to be written
 	c.rwc.Close() // close client connection
-	Logger.Printf("client [%d] connection closed", c.Numero)
+	c.srv.logf("client [%d] connection closed", c.Numero)
 
 	c.srv.wg.Done() // signal to server that client shutdown is ok
 }
 
 func (c *client) writeMessage(m *ldap.LDAPMessage) {
 	data, _ := m.Write()
-	Logger.Printf(">>> %d - %s - hex=%x", c.Numero, m.ProtocolOpName(), data.Bytes())
+	c.srv.logf(">>> %d - %s - hex=%x", c.Numero, m.ProtocolOpName(), data.Bytes())
 	c.bw.Write(data.Bytes())
 	c.bw.Flush()
 }

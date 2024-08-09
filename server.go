@@ -2,6 +2,7 @@ package ldapserver
 
 import (
 	"bufio"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -17,12 +18,27 @@ type Server struct {
 
 	// HandleConnection is called on new connections.
 	HandleConnection func(c net.Conn) Handler
+
+	// DebugLogger can be useful for development.
+	DebugLogger func(string)
 }
 
 // NewServer return a LDAP Server
 func NewServer() *Server {
 	return &Server{
 		chDone: make(chan bool),
+	}
+}
+
+func (s *Server) log(msg string) {
+	if s.DebugLogger != nil {
+		s.DebugLogger(msg)
+	}
+}
+
+func (s *Server) logf(format string, a ...any) {
+	if s.DebugLogger != nil {
+		s.DebugLogger(fmt.Sprintf(format, a...))
 	}
 }
 
@@ -40,7 +56,7 @@ func (s *Server) ListenAndServe(addr string, options ...func(*Server)) error {
 	if e != nil {
 		return e
 	}
-	Logger.Printf("Listening on %s\n", addr)
+	s.logf("Listening on %s\n", addr)
 
 	for _, option := range options {
 		option(s)
@@ -54,7 +70,7 @@ func (s *Server) serve() error {
 	defer s.Listener.Close()
 
 	if s.HandleConnection == nil {
-		Logger.Panicln("No LDAP Request Handler defined")
+		return fmt.Errorf("No LDAP Request Handler defined")
 	}
 
 	i := 0
@@ -62,7 +78,7 @@ func (s *Server) serve() error {
 	for {
 		select {
 		case <-s.chDone:
-			Logger.Print("Stopping server")
+			s.log("Stopping server")
 			return nil
 		default:
 		}
@@ -79,7 +95,7 @@ func (s *Server) serve() error {
 			if opErr, ok := err.(*net.OpError); ok || opErr.Timeout() {
 				continue
 			}
-			Logger.Println(err)
+			s.log(err.Error())
 		}
 
 		cli, err := s.newClient(rw)
@@ -90,7 +106,7 @@ func (s *Server) serve() error {
 
 		i = i + 1
 		cli.Numero = i
-		Logger.Printf("Connection client [%d] from %s accepted", cli.Numero, cli.rwc.RemoteAddr().String())
+		s.logf("Connection client [%d] from %s accepted", cli.Numero, cli.rwc.RemoteAddr().String())
 		s.wg.Add(1)
 		go cli.serve()
 	}
@@ -120,7 +136,7 @@ func (s *Server) newClient(rwc net.Conn) (c *client, err error) {
 // In either case, when the LDAP session is terminated.
 func (s *Server) Stop() {
 	close(s.chDone)
-	Logger.Print("gracefully closing client connections...")
+	s.log("gracefully closing client connections...")
 	s.wg.Wait()
-	Logger.Print("all clients connection closed")
+	s.log("all clients connection closed")
 }
