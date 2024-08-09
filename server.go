@@ -51,26 +51,20 @@ func (s *Server) ListenAndServe(addr string, options ...func(*Server)) error {
 		addr = ":389"
 	}
 
-	var e error
-	s.Listener, e = net.Listen("tcp", addr)
-	if e != nil {
-		return e
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
 	}
+	defer listener.Close()
+	s.Listener = listener
 	s.logf("Listening on %s\n", addr)
 
 	for _, option := range options {
 		option(s)
 	}
 
-	return s.serve()
-}
-
-// Handle requests messages on the ln listener
-func (s *Server) serve() error {
-	defer s.Listener.Close()
-
 	if s.HandleConnection == nil {
-		return fmt.Errorf("No LDAP Request Handler defined")
+		return fmt.Errorf("no LDAP Request Handler defined")
 	}
 
 	i := 0
@@ -98,30 +92,19 @@ func (s *Server) serve() error {
 			s.log(err.Error())
 		}
 
-		cli, err := s.newClient(rw)
-
-		if err != nil {
-			continue
+		i++
+		cli := &client{
+			Numero: i,
+			srv:    s,
+			rwc:    rw,
+			br:     bufio.NewReader(rw),
+			bw:     bufio.NewWriter(rw),
 		}
 
-		i = i + 1
-		cli.Numero = i
 		s.logf("Connection client [%d] from %s accepted", cli.Numero, cli.rwc.RemoteAddr().String())
 		s.wg.Add(1)
 		go cli.serve()
 	}
-}
-
-// Return a new session with the connection
-// client has a writer and reader buffer
-func (s *Server) newClient(rwc net.Conn) (c *client, err error) {
-	c = &client{
-		srv: s,
-		rwc: rwc,
-		br:  bufio.NewReader(rwc),
-		bw:  bufio.NewWriter(rwc),
-	}
-	return c, nil
 }
 
 // Termination of the LDAP session is initiated by the server sending a
