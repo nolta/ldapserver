@@ -63,7 +63,6 @@ func (s *Server) serve() error {
 		select {
 		case <-s.chDone:
 			Logger.Print("Stopping server")
-			s.Listener.Close()
 			return nil
 		default:
 		}
