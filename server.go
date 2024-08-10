@@ -71,13 +71,6 @@ func (s *Server) Serve(listener net.Listener) error {
 	i := 0
 
 	for {
-		select {
-		case <-s.chDone:
-			s.log("Stopping server")
-			return nil
-		default:
-		}
-
 		rw, err := s.Listener.Accept()
 		if err != nil {
 			// Temporary is deprecated, but still used by net/http (2024-08-10)
@@ -121,6 +114,7 @@ func (s *Server) Serve(listener net.Listener) error {
 // transport connection.
 // In either case, when the LDAP session is terminated.
 func (s *Server) Shutdown() {
+	s.Listener.Close()
 	close(s.chDone)
 	s.log("gracefully closing client connections...")
 	s.wg.Wait()
