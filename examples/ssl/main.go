@@ -42,7 +42,7 @@ AM65XAOw8Dsg9Kq78aYXiOEDc5DL0sbFUu/SlmRcCg93
 func getTLSconfig() (*tls.Config, error) {
 	cert, err := tls.X509KeyPair(localhostCert, localhostKey)
 	if err != nil {
-		return &tls.Config{}, err
+		return nil, err
 	}
 
 	return &tls.Config{
@@ -62,12 +62,17 @@ func main() {
 		return routes
 	}
 
-	//SSL
-	secureConn := func(s *ldap.Server) {
-		config, _ := getTLSconfig()
-		s.Listener = tls.NewListener(s.Listener, config)
+	// listen for TLS on 10389
+	listener, err := net.Listen("tcp", ":10389")
+	if err != nil {
+		log.Fatalf("LDAP Server failed to listen: %s", err)
 	}
-	go server.ListenAndServe(":10636", secureConn)
+	tlsConfig, err := getTLSconfig()
+	if err != nil {
+		log.Fatalf("LDAP Server failed to get TLS config: %s", err)
+	}
+	listener = tls.NewListener(listener, tlsConfig)
+	go server.Serve(listener)
 
 	// When CTRL+C, SIGINT and SIGTERM signal occurs
 	// Then stop server gracefully

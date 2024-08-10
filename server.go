@@ -45,7 +45,7 @@ func (s *Server) logf(format string, a ...any) {
 // ListenAndServe listens on the TCP network address s.Addr and then
 // calls Serve to handle requests on incoming connections.  If
 // s.Addr is blank, ":389" is used.
-func (s *Server) ListenAndServe(addr string, options ...func(*Server)) error {
+func (s *Server) ListenAndServe(addr string) error {
 
 	if addr == "" {
 		addr = ":389"
@@ -55,13 +55,14 @@ func (s *Server) ListenAndServe(addr string, options ...func(*Server)) error {
 	if err != nil {
 		return err
 	}
-	defer listener.Close()
-	s.Listener = listener
 	s.logf("Listening on %s\n", addr)
 
-	for _, option := range options {
-		option(s)
-	}
+	return s.Serve(listener)
+}
+
+func (s *Server) Serve(listener net.Listener) error {
+	defer listener.Close()
+	s.Listener = listener
 
 	if s.HandleConnection == nil {
 		return fmt.Errorf("no LDAP Request Handler defined")
