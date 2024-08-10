@@ -59,7 +59,7 @@ func main() {
 	<-ch
 	close(ch)
 
-	server.Stop()
+	server.Shutdown()
 }
 
 // handleBind return Success if login == mysql

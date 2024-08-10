@@ -62,7 +62,7 @@ func main() {
 	<-ch
 	close(ch)
 
-	server.Stop()
+	server.Shutdown()
 }
 
 func handleNotFound(w ldap.ResponseWriter, r *ldap.Message) {

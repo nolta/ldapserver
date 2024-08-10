@@ -115,7 +115,7 @@ func (s *Server) ListenAndServe(addr string, options ...func(*Server)) error {
 // terminate the session by ceasing communication and closing the
 // transport connection.
 // In either case, when the LDAP session is terminated.
-func (s *Server) Stop() {
+func (s *Server) Shutdown() {
 	close(s.chDone)
 	s.log("gracefully closing client connections...")
 	s.wg.Wait()

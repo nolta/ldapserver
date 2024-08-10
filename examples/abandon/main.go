@@ -33,7 +33,7 @@ func main() {
 	<-ch
 	close(ch)
 
-	server.Stop()
+	server.Shutdown()
 }
 
 func handleSearch(w ldap.ResponseWriter, m *ldap.Message) {
