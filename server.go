@@ -80,8 +80,12 @@ func (s *Server) Serve(listener net.Listener) error {
 
 		rw, err := s.Listener.Accept()
 		if err != nil {
-			s.log(err.Error())
-			continue
+			// Temporary is deprecated, but still used by net/http (2024-08-10)
+			if ne, ok := err.(net.Error); ok && ne.Temporary() {
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			return err
 		}
 
 		if s.ReadTimeout > 0 {
