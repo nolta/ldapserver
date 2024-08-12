@@ -67,6 +67,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("LDAP Server failed to listen: %s", err)
 	}
+	defer listener.Close()
 	tlsConfig, err := getTLSconfig()
 	if err != nil {
 		log.Fatalf("LDAP Server failed to get TLS config: %s", err)

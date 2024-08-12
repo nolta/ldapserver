@@ -10,7 +10,6 @@ import (
 
 // Server is an LDAP server.
 type Server struct {
-	Listener     net.Listener
 	ReadTimeout  time.Duration  // optional read timeout
 	WriteTimeout time.Duration  // optional write timeout
 	wg           sync.WaitGroup // group of goroutines (1 by client)
@@ -21,6 +20,9 @@ type Server struct {
 
 	// DebugLogger can be useful for development.
 	DebugLogger func(string)
+
+	mu        sync.Mutex
+	listeners map[*net.Listener]struct{}
 }
 
 // NewServer return a LDAP Server
@@ -46,7 +48,6 @@ func (s *Server) logf(format string, a ...any) {
 // calls Serve to handle requests on incoming connections.  If
 // s.Addr is blank, ":389" is used.
 func (s *Server) ListenAndServe(addr string) error {
-
 	if addr == "" {
 		addr = ":389"
 	}
@@ -55,23 +56,32 @@ func (s *Server) ListenAndServe(addr string) error {
 	if err != nil {
 		return err
 	}
-	s.logf("Listening on %s\n", addr)
+	defer listener.Close()
 
 	return s.Serve(listener)
 }
 
 func (s *Server) Serve(listener net.Listener) error {
-	defer listener.Close()
-	s.Listener = listener
-
 	if s.HandleConnection == nil {
 		return fmt.Errorf("no LDAP Request Handler defined")
 	}
 
+	s.mu.Lock()
+	if s.listeners == nil {
+		s.listeners = make(map[*net.Listener]struct{})
+	}
+	s.listeners[&listener] = struct{}{}
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		delete(s.listeners, &listener)
+		s.mu.Unlock()
+	}()
+
 	i := 0
 
 	for {
-		rw, err := s.Listener.Accept()
+		rw, err := listener.Accept()
 		if err != nil {
 			// Temporary is deprecated, but still used by net/http (2024-08-10)
 			if ne, ok := err.(net.Error); ok && ne.Temporary() {
@@ -114,7 +124,12 @@ func (s *Server) Serve(listener net.Listener) error {
 // transport connection.
 // In either case, when the LDAP session is terminated.
 func (s *Server) Shutdown() {
-	s.Listener.Close()
+	s.mu.Lock()
+	for listener := range s.listeners {
+		(*listener).Close()
+	}
+	clear(s.listeners)
+	s.mu.Unlock()
 	close(s.chDone)
 	s.log("gracefully closing client connections...")
 	s.wg.Wait()
