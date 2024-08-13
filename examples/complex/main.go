@@ -15,7 +15,7 @@ import (
 
 func main() {
 	//Create a new LDAP Server
-	server := ldap.NewServer()
+	server := &ldap.Server{}
 
 	//Create routes bindings
 	routes := ldap.NewRouteMux()

@@ -54,7 +54,7 @@ func getTLSconfig() (*tls.Config, error) {
 
 func main() {
 	//Create a new LDAP Server
-	server := ldap.NewServer()
+	server := &ldap.Server{}
 
 	//Set routes, here, we only serve bindRequest
 	routes := ldap.NewRouteMux()

@@ -25,13 +25,6 @@ type Server struct {
 	listeners map[*net.Listener]struct{}
 }
 
-// NewServer return a LDAP Server
-func NewServer() *Server {
-	return &Server{
-		chDone: make(chan bool),
-	}
-}
-
 func (s *Server) log(msg string) {
 	if s.DebugLogger != nil {
 		s.DebugLogger(msg)
@@ -67,6 +60,9 @@ func (s *Server) Serve(listener net.Listener) error {
 	}
 
 	s.mu.Lock()
+	if s.chDone == nil {
+		s.chDone = make(chan bool)
+	}
 	if s.listeners == nil {
 		s.listeners = make(map[*net.Listener]struct{})
 	}
