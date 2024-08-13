@@ -1,13 +1,13 @@
+#!/usr/bin/env python3
+
 import getpass
 import ldap
 import logging
-import logging.config
 import optparse
 import os
 import os.path
 
 logger = logging.getLogger('abandon')
-
 
 def test_abandon(uri, binddn, passwd, bases, timeout, retries, filterstr,
                  *attributes):
@@ -27,7 +27,7 @@ def test_abandon(uri, binddn, passwd, bases, timeout, retries, filterstr,
     if not attributes:
         attributes = None
 
-    for r in xrange(retries):
+    for r in range(retries):
         for base in bases:
             msgid = l.search_ext(base, ldap.SCOPE_ONELEVEL, filterstr,
                                  attributes, timeout=timeout)
@@ -40,13 +40,6 @@ def test_abandon(uri, binddn, passwd, bases, timeout, retries, filterstr,
             except ldap.TIMEOUT:
                 logger.error('abandon="%d"', msgid)
                 l.abandon(msgid)
-            except ldap.TIMELIMIT_EXCEEDED:
-                logger.error('timelimit="%d"', msgid)
-            except ldap.LDAPError:
-                logger.exception('error="%d"', msgid)
-            else:
-                logger.debug('result_type="%s", result_data="%r"', *res)
-
 
 if __name__ == "__main__":
     parser = optparse.OptionParser()
@@ -55,15 +48,11 @@ if __name__ == "__main__":
     parser.add_option('-D', dest='binddn', default="login")
     parser.add_option('-w', dest='passwd', default="pass")
     parser.add_option('-b', dest='searchbase', action='append',default="cn=fds,ou=tre")
-    parser.add_option('-l', dest='logconfig', default='abandon.ini')
     parser.add_option('-t', dest='timeout', type="int", default=1)
     parser.add_option('-r', dest='retries', type="int", default=1)
     parser.add_option('-f', dest='filterstr', type="string", default='(objectclass=*)')
 
     opts, args = parser.parse_args()
-
-    ini = os.path.abspath(opts.logconfig)
-    logging.config.fileConfig(ini, disable_existing_loggers=False)
 
     passwd = opts.passwd or os.environ.get('LDAP_PASSWD') or getpass.getpass()
     test_abandon(opts.ldapuri,

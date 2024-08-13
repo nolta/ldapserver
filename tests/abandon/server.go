@@ -22,6 +22,7 @@ func main() {
 	server.HandleConnection = func(net.Conn) ldap.Handler {
 		return routes
 	}
+	server.DebugLogger = func(msg string) { log.Print(msg) }
 
 	// listen on 10389
 	go server.ListenAndServe("127.0.0.1:10389")
