@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net"
 	"os"
@@ -37,7 +38,7 @@ func main() {
 	server.Shutdown()
 }
 
-func handleSearch(w ldap.ResponseWriter, m *ldap.Message) {
+func handleSearch(ctx context.Context, w ldap.ResponseWriter, m *ldap.Message) {
 	r := m.GetSearchRequest()
 	log.Printf("Request BaseDn=%s", r.BaseObject())
 	log.Printf("Request Filter=%s", r.FilterString())
@@ -46,7 +47,7 @@ func handleSearch(w ldap.ResponseWriter, m *ldap.Message) {
 	// Handle Stop Signal (server stop / client disconnected / Abandoned request....)
 	for {
 		select {
-		case <-m.Done:
+		case <-ctx.Done():
 			log.Printf("Leaving handleSearch... for msgid=%d", m.MessageID())
 			return
 		default:
@@ -66,7 +67,7 @@ func handleSearch(w ldap.ResponseWriter, m *ldap.Message) {
 }
 
 // handleBind return Success for any login/pass
-func handleBind(w ldap.ResponseWriter, m *ldap.Message) {
+func handleBind(ctx context.Context, w ldap.ResponseWriter, m *ldap.Message) {
 	res := ldap.NewBindResponse(ldap.LDAPResultSuccess)
 	w.Write(res)
 }

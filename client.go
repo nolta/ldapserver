@@ -2,6 +2,7 @@ package ldapserver
 
 import (
 	"bufio"
+	"context"
 	"net"
 	"sync"
 	"time"
@@ -10,17 +11,17 @@ import (
 )
 
 type client struct {
-	sync.RWMutex
-	Numero      int
-	srv         *Server
-	rwc         net.Conn
-	br          *bufio.Reader
-	bw          *bufio.Writer
-	chanOut     chan *ldap.LDAPMessage
-	wg          sync.WaitGroup
-	closing     chan bool
-	requestList map[int]*Message
-	writeDone   chan bool
+	sync.Mutex
+	Numero        int
+	srv           *Server
+	rwc           net.Conn
+	br            *bufio.Reader
+	bw            *bufio.Writer
+	chanOut       chan *ldap.LDAPMessage
+	wg            sync.WaitGroup
+	closing       chan bool
+	requestCancel map[int]context.CancelFunc
+	writeDone     chan bool
 }
 
 func (c *client) GetConn() net.Conn {
@@ -31,15 +32,6 @@ func (c *client) SetConn(conn net.Conn) {
 	c.rwc = conn
 	c.br = bufio.NewReader(c.rwc)
 	c.bw = bufio.NewWriter(c.rwc)
-}
-
-func (c *client) GetMessageByID(messageID int) (*Message, bool) {
-	c.RLock()
-	defer c.RUnlock()
-	if requestToAbandon, ok := c.requestList[messageID]; ok {
-		return requestToAbandon, true
-	}
-	return nil, false
 }
 
 func (c *client) Addr() net.Addr {
@@ -90,8 +82,6 @@ func (c *client) serve() {
 		}
 	}()
 
-	c.requestList = make(map[int]*Message)
-
 	for {
 
 		if c.srv.ReadTimeout != 0 {
@@ -131,10 +121,14 @@ func (c *client) serve() {
 			return
 		}
 
-		// If client requests a startTls, do not handle it in a
-		// goroutine, connection has to remain free until TLS is OK
-		// @see RFC https://tools.ietf.org/html/rfc4511#section-4.14.1
-		if req, ok := message.ProtocolOp().(ldap.ExtendedRequest); ok {
+		switch req := message.ProtocolOp().(type) {
+		case ldap.AbandonRequest:
+			c.cancelMessageID(int(req))
+			continue
+		case ldap.ExtendedRequest:
+			// If client requests a startTls, do not handle it in a
+			// goroutine, connection has to remain free until TLS is OK
+			// @see RFC https://tools.ietf.org/html/rfc4511#section-4.14.1
 			if req.RequestName() == NoticeOfStartTLS {
 				c.wg.Add(1)
 				c.ProcessRequestMessage(handler, &message)
@@ -165,12 +159,13 @@ func (c *client) close() {
 	c.srv.logf("client %d close() - stop reading from client", c.Numero)
 
 	// signals to all currently running request processor to stop
-	c.RLock()
-	for messageID, request := range c.requestList {
+	c.Lock()
+	for messageID, cancelCtx := range c.requestCancel {
 		c.srv.logf("Client %d close() - sent abandon signal to request[messageID = %d]", c.Numero, messageID)
-		go request.Abandon()
+		cancelCtx()
 	}
-	c.RUnlock()
+	clear(c.requestCancel)
+	c.Unlock()
 	c.srv.logf("client %d close() - Abandon signal sent to processors", c.Numero)
 
 	c.wg.Wait()      // wait for all current running request processor to end
@@ -212,30 +207,40 @@ func (w responseWriterImpl) Write(po ldap.ProtocolOp) {
 func (c *client) ProcessRequestMessage(handler Handler, message *ldap.LDAPMessage) {
 	defer c.wg.Done()
 
+	messageID := message.MessageID().Int()
 	m := &Message{
 		LDAPMessage: message,
-		Done:        make(chan bool, 2),
 		Client:      c,
 	}
 
-	c.registerRequest(m)
-	defer c.unregisterRequest(m)
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	defer cancelCtx()
+
+	// store the cancel function in case we get an abandon message
+	c.Lock()
+	if c.requestCancel == nil {
+		c.requestCancel = make(map[int]context.CancelFunc)
+	}
+	c.requestCancel[messageID] = cancelCtx
+	c.Unlock()
+	defer func() {
+		c.Lock()
+		delete(c.requestCancel, messageID)
+		c.Unlock()
+	}()
 
 	var w responseWriterImpl
 	w.chanOut = c.chanOut
-	w.messageID = m.MessageID().Int()
+	w.messageID = messageID
 
-	handler.ServeLDAP(w, m)
+	handler.ServeLDAP(ctx, w, m)
 }
 
-func (c *client) registerRequest(m *Message) {
+func (c *client) cancelMessageID(messageID int) {
 	c.Lock()
 	defer c.Unlock()
-	c.requestList[m.MessageID().Int()] = m
-}
-
-func (c *client) unregisterRequest(m *Message) {
-	c.Lock()
-	defer c.Unlock()
-	delete(c.requestList, m.MessageID().Int())
+	if cancelCtx, ok := c.requestCancel[messageID]; ok {
+		cancelCtx()
+		delete(c.requestCancel, messageID)
+	}
 }

@@ -9,21 +9,10 @@ import (
 type Message struct {
 	*ldap.LDAPMessage
 	Client *client
-	Done   chan bool
 }
 
 func (m *Message) String() string {
 	return fmt.Sprintf("MessageId=%d, %s", m.MessageID(), m.ProtocolOpName())
-}
-
-// Abandon close the Done channel, to notify handler's user function to stop any
-// running process
-func (m *Message) Abandon() {
-	m.Done <- true
-}
-
-func (m *Message) GetAbandonRequest() ldap.AbandonRequest {
-	return m.ProtocolOp().(ldap.AbandonRequest)
 }
 
 func (m *Message) GetSearchRequest() ldap.SearchRequest {

@@ -29,6 +29,7 @@ Feel free to contribute, comment :)
 package main
 
 import (
+	"context"
 	"log"
 	"net"
 	"os"
@@ -63,7 +64,7 @@ func main() {
 }
 
 // handleBind return Success if login == mysql
-func handleBind(w ldap.ResponseWriter, m *ldap.Message) {
+func handleBind(ctx context.Context, w ldap.ResponseWriter, m *ldap.Message) {
 	r := m.GetBindRequest()
 	res := ldap.NewBindResponse(ldap.LDAPResultSuccess)
 

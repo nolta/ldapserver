@@ -1,6 +1,7 @@
 package ldapserver
 
 import (
+	"context"
 	"strings"
 
 	ldap "github.com/lor00x/goldap/message"
@@ -22,7 +23,7 @@ const (
 // ordinary functions as LDAP handlers.  If f is a function
 // with the appropriate signature, HandlerFunc(f) is a
 // Handler object that calls f.
-type HandlerFunc func(ResponseWriter, *Message)
+type HandlerFunc func(context.Context, ResponseWriter, *Message)
 
 // RouteMux manages all routes
 type RouteMux struct {
@@ -132,32 +133,23 @@ func NewRouteMux() *RouteMux {
 
 // Handler interface used to serve a LDAP Request message
 type Handler interface {
-	ServeLDAP(w ResponseWriter, r *Message)
+	ServeLDAP(ctx context.Context, w ResponseWriter, r *Message)
 }
 
 // ServeLDAP dispatches the request to the handler whose
 // pattern most closely matches the request request Message.
-func (h *RouteMux) ServeLDAP(w ResponseWriter, r *Message) {
+func (h *RouteMux) ServeLDAP(ctx context.Context, w ResponseWriter, r *Message) {
 
 	//find a matching Route
 	for _, route := range h.routes {
 		if route.Match(r) {
-			route.handler(w, r)
+			route.handler(ctx, w, r)
 			return
 		}
 	}
 
-	// Catch a AbandonRequest not handled by user
-	switch v := r.ProtocolOp().(type) {
-	case ldap.AbandonRequest:
-		// retreive the request to abandon, and send a abort signal to it
-		if requestToAbandon, ok := r.Client.GetMessageByID(int(v)); ok {
-			requestToAbandon.Abandon()
-		}
-	}
-
 	if h.notFoundRoute != nil {
-		h.notFoundRoute.handler(w, r)
+		h.notFoundRoute.handler(ctx, w, r)
 	} else {
 		res := NewResponse(LDAPResultUnwillingToPerform)
 		res.SetDiagnosticMessage("Operation not implemented by server")
@@ -230,14 +222,6 @@ func (h *RouteMux) Compare(handler HandlerFunc) *route {
 func (h *RouteMux) Extended(handler HandlerFunc) *route {
 	route := &route{}
 	route.operation = EXTENDED
-	route.handler = handler
-	h.addRoute(route)
-	return route
-}
-
-func (h *RouteMux) Abandon(handler HandlerFunc) *route {
-	route := &route{}
-	route.operation = ABANDON
 	route.handler = handler
 	h.addRoute(route)
 	return route

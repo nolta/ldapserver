@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"log"
@@ -19,7 +20,6 @@ func main() {
 	//Create routes bindings
 	routes := ldap.NewRouteMux()
 	routes.NotFound(handleNotFound)
-	routes.Abandon(handleAbandon)
 	routes.Bind(handleBind)
 	routes.Compare(handleCompare)
 	routes.Add(handleAdd)
@@ -65,7 +65,7 @@ func main() {
 	server.Shutdown()
 }
 
-func handleNotFound(w ldap.ResponseWriter, r *ldap.Message) {
+func handleNotFound(ctx context.Context, w ldap.ResponseWriter, r *ldap.Message) {
 	switch r.ProtocolOpType() {
 	case ldap.ApplicationBindRequest:
 		res := ldap.NewBindResponse(ldap.LDAPResultSuccess)
@@ -80,16 +80,7 @@ func handleNotFound(w ldap.ResponseWriter, r *ldap.Message) {
 	}
 }
 
-func handleAbandon(w ldap.ResponseWriter, m *ldap.Message) {
-	var req = m.GetAbandonRequest()
-	// retreive the request to abandon, and send a abort signal to it
-	if requestToAbandon, ok := m.Client.GetMessageByID(int(req)); ok {
-		requestToAbandon.Abandon()
-		log.Printf("Abandon signal sent to request processor [messageID=%d]", int(req))
-	}
-}
-
-func handleBind(w ldap.ResponseWriter, m *ldap.Message) {
+func handleBind(ctx context.Context, w ldap.ResponseWriter, m *ldap.Message) {
 	r := m.GetBindRequest()
 	res := ldap.NewBindResponse(ldap.LDAPResultSuccess)
 	if r.AuthenticationChoice() == "simple" {
@@ -116,7 +107,7 @@ func handleBind(w ldap.ResponseWriter, m *ldap.Message) {
 // subtype did not match.  Other result codes indicate either that the
 // result of the comparison was Undefined, or that
 // some error occurred.
-func handleCompare(w ldap.ResponseWriter, m *ldap.Message) {
+func handleCompare(ctx context.Context, w ldap.ResponseWriter, m *ldap.Message) {
 	r := m.GetCompareRequest()
 	log.Printf("Comparing entry: %s", r.Entry())
 	//attributes values
@@ -128,7 +119,7 @@ func handleCompare(w ldap.ResponseWriter, m *ldap.Message) {
 	w.Write(res)
 }
 
-func handleAdd(w ldap.ResponseWriter, m *ldap.Message) {
+func handleAdd(ctx context.Context, w ldap.ResponseWriter, m *ldap.Message) {
 	r := m.GetAddRequest()
 	log.Printf("Adding entry: %s", r.Entry())
 	//attributes values
@@ -141,7 +132,7 @@ func handleAdd(w ldap.ResponseWriter, m *ldap.Message) {
 	w.Write(res)
 }
 
-func handleModify(w ldap.ResponseWriter, m *ldap.Message) {
+func handleModify(ctx context.Context, w ldap.ResponseWriter, m *ldap.Message) {
 	r := m.GetModifyRequest()
 	log.Printf("Modify entry: %s", r.Object())
 
@@ -168,14 +159,14 @@ func handleModify(w ldap.ResponseWriter, m *ldap.Message) {
 	w.Write(res)
 }
 
-func handleDelete(w ldap.ResponseWriter, m *ldap.Message) {
+func handleDelete(ctx context.Context, w ldap.ResponseWriter, m *ldap.Message) {
 	r := m.GetDeleteRequest()
 	log.Printf("Deleting entry: %s", r)
 	res := ldap.NewDeleteResponse(ldap.LDAPResultSuccess)
 	w.Write(res)
 }
 
-func handleExtended(w ldap.ResponseWriter, m *ldap.Message) {
+func handleExtended(ctx context.Context, w ldap.ResponseWriter, m *ldap.Message) {
 	r := m.GetExtendedRequest()
 	log.Printf("Extended request received, name=%s", r.RequestName())
 	log.Printf("Extended request received, value=%x", r.RequestValue())
@@ -183,12 +174,12 @@ func handleExtended(w ldap.ResponseWriter, m *ldap.Message) {
 	w.Write(res)
 }
 
-func handleWhoAmI(w ldap.ResponseWriter, m *ldap.Message) {
+func handleWhoAmI(ctx context.Context, w ldap.ResponseWriter, m *ldap.Message) {
 	res := ldap.NewExtendedResponse(ldap.LDAPResultSuccess)
 	w.Write(res)
 }
 
-func handleSearchDSE(w ldap.ResponseWriter, m *ldap.Message) {
+func handleSearchDSE(ctx context.Context, w ldap.ResponseWriter, m *ldap.Message) {
 	r := m.GetSearchRequest()
 
 	log.Printf("Request BaseDn=%s", r.BaseObject())
@@ -216,7 +207,7 @@ func handleSearchDSE(w ldap.ResponseWriter, m *ldap.Message) {
 	w.Write(res)
 }
 
-func handleSearchMyCompany(w ldap.ResponseWriter, m *ldap.Message) {
+func handleSearchMyCompany(ctx context.Context, w ldap.ResponseWriter, m *ldap.Message) {
 	r := m.GetSearchRequest()
 	log.Printf("handleSearchMyCompany - Request BaseDn=%s", r.BaseObject())
 
@@ -228,7 +219,7 @@ func handleSearchMyCompany(w ldap.ResponseWriter, m *ldap.Message) {
 	w.Write(res)
 }
 
-func handleSearch(w ldap.ResponseWriter, m *ldap.Message) {
+func handleSearch(ctx context.Context, w ldap.ResponseWriter, m *ldap.Message) {
 	r := m.GetSearchRequest()
 	log.Printf("Request BaseDn=%s", r.BaseObject())
 	log.Printf("Request Filter=%s", r.Filter())
@@ -238,7 +229,7 @@ func handleSearch(w ldap.ResponseWriter, m *ldap.Message) {
 
 	// Handle Stop Signal (server stop / client disconnected / Abandoned request....)
 	select {
-	case <-m.Done:
+	case <-ctx.Done():
 		log.Print("Leaving handleSearch...")
 		return
 	default:
@@ -304,7 +295,7 @@ func getTLSconfig() (*tls.Config, error) {
 	}, nil
 }
 
-func handleStartTLS(w ldap.ResponseWriter, m *ldap.Message) {
+func handleStartTLS(ctx context.Context, w ldap.ResponseWriter, m *ldap.Message) {
 	tlsconfig, _ := getTLSconfig()
 	tlsConn := tls.Server(m.Client.GetConn(), tlsconfig)
 	res := ldap.NewExtendedResponse(ldap.LDAPResultSuccess)
