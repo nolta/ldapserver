@@ -83,11 +83,10 @@ func (c *client) serve() {
 	}()
 
 	for {
-
-		if c.srv.ReadTimeout != 0 {
+		if c.srv.ReadTimeout > 0 {
 			c.rwc.SetReadDeadline(time.Now().Add(c.srv.ReadTimeout))
 		}
-		if c.srv.WriteTimeout != 0 {
+		if c.srv.WriteTimeout > 0 {
 			c.rwc.SetWriteDeadline(time.Now().Add(c.srv.WriteTimeout))
 		}
 

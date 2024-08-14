@@ -87,13 +87,6 @@ func (s *Server) Serve(listener net.Listener) error {
 			return err
 		}
 
-		if s.ReadTimeout > 0 {
-			rw.SetReadDeadline(time.Now().Add(s.ReadTimeout))
-		}
-		if s.WriteTimeout > 0 {
-			rw.SetWriteDeadline(time.Now().Add(s.WriteTimeout))
-		}
-
 		i++
 		cli := &client{
 			Numero: i,
