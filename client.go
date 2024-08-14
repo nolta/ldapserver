@@ -103,7 +103,6 @@ func (c *client) serve() {
 
 		//Convert ASN1 binaryMessage to a ldap Message
 		message, err := messagePacket.readMessage()
-
 		if err != nil {
 			c.srv.logf("Error reading Message : %s\n\t%x", err.Error(), messagePacket.bytes)
 			continue
@@ -114,11 +113,6 @@ func (c *client) serve() {
 		// solution 1 : when the buffered output channel is full, send a busy
 		// solution 2 : when 10 client requests (goroutines) are running, send a busy message
 		// And when the limit is reached THEN send a BusyLdapMessage
-
-		// When message is an UnbindRequest, stop serving
-		if _, ok := message.ProtocolOp().(ldap.UnbindRequest); ok {
-			return
-		}
 
 		switch req := message.ProtocolOp().(type) {
 		case ldap.AbandonRequest:
@@ -133,6 +127,9 @@ func (c *client) serve() {
 				c.ProcessRequestMessage(handler, &message)
 				continue
 			}
+		case ldap.UnbindRequest:
+			// stop serving
+			return
 		}
 
 		// TODO: go/non go routine choice should be done in the ProcessRequestMessage
