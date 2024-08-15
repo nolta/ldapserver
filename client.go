@@ -82,62 +82,60 @@ func (c *client) serve() {
 		}
 	}()
 
-	for {
-		if c.srv.ReadTimeout > 0 {
-			c.rwc.SetReadDeadline(time.Now().Add(c.srv.ReadTimeout))
+	// Incoming message channel. It's buffered so we can peek at
+	// the next message, in case it's an AbandonRequest.
+	//
+	// XXX:FIXME enlarging the buffer may cause abandon requests to be
+	// ignored, if they fire before the message starts processing.
+	inbox := make(chan *ldap.LDAPMessage, 1)
+	go func() {
+		defer close(inbox)
+		for {
+			message, err := c.readMessage()
+			if err != nil {
+				c.srv.logf("client %d readMessage error: %s", c.Numero, err)
+				return
+			}
+
+			switch message.ProtocolOp().(type) {
+			case ldap.AbandonRequest:
+				c.cancelMessageID(int(message.MessageID()))
+			case ldap.UnbindRequest:
+				return
+			default:
+				inbox <- message
+			}
 		}
+	}()
+
+	for message := range inbox {
 		if c.srv.WriteTimeout > 0 {
 			c.rwc.SetWriteDeadline(time.Now().Add(c.srv.WriteTimeout))
 		}
 
-		//Read client input as a ASN1/BER binary message
-		messagePacket, err := readMessagePacket(c.br)
-		if err != nil {
-			if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
-				c.srv.logf("Sorry client %d, i can not wait anymore (reading timeout) ! %s", c.Numero, err)
-			} else {
-				c.srv.logf("Error readMessagePacket: %s", err)
-			}
-			return
-		}
-
-		//Convert ASN1 binaryMessage to a ldap Message
-		message, err := messagePacket.readMessage()
-		if err != nil {
-			c.srv.logf("Error reading Message : %s\n\t%x", err.Error(), messagePacket.bytes)
-			continue
-		}
-		c.srv.logf("<<< %d - %s - hex=%x", c.Numero, message.ProtocolOpName(), messagePacket)
-
-		// TODO: Use a implementation to limit runnuning request by client
-		// solution 1 : when the buffered output channel is full, send a busy
-		// solution 2 : when 10 client requests (goroutines) are running, send a busy message
-		// And when the limit is reached THEN send a BusyLdapMessage
-
-		switch req := message.ProtocolOp().(type) {
-		case ldap.AbandonRequest:
-			c.cancelMessageID(int(req))
-			continue
-		case ldap.ExtendedRequest:
-			// If client requests a startTls, do not handle it in a
-			// goroutine, connection has to remain free until TLS is OK
-			// @see RFC https://tools.ietf.org/html/rfc4511#section-4.14.1
-			if req.RequestName() == NoticeOfStartTLS {
-				c.wg.Add(1)
-				c.ProcessRequestMessage(handler, &message)
-				continue
-			}
-		case ldap.UnbindRequest:
-			// stop serving
-			return
-		}
-
-		// TODO: go/non go routine choice should be done in the ProcessRequestMessage
-		// not in the client.serve func
 		c.wg.Add(1)
-		go c.ProcessRequestMessage(handler, &message)
+		c.ProcessRequestMessage(handler, message)
+	}
+}
+
+func (c *client) readMessage() (*ldap.LDAPMessage, error) {
+	if c.srv.ReadTimeout > 0 {
+		c.rwc.SetReadDeadline(time.Now().Add(c.srv.ReadTimeout))
 	}
 
+	//Read client input as a ASN1/BER binary message
+	messagePacket, err := readMessagePacket(c.br)
+	if err != nil {
+		return nil, err
+	}
+
+	//Convert ASN1 binaryMessage to a ldap Message
+	message, err := messagePacket.readMessage()
+	if err != nil {
+		return nil, err
+	}
+
+	return &message, nil
 }
 
 // close closes client,
