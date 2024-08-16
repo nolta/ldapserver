@@ -91,7 +91,11 @@ func (c *client) serve() {
 	go func() {
 		defer close(inbox)
 		for {
-			message, err := c.readMessage()
+			if c.srv.ReadTimeout > 0 {
+				c.rwc.SetReadDeadline(time.Now().Add(c.srv.ReadTimeout))
+			}
+
+			message, err := readMessage(c.br)
 			if err != nil {
 				c.srv.logf("client %d readMessage error: %s", c.Numero, err)
 				return
@@ -116,26 +120,6 @@ func (c *client) serve() {
 		c.wg.Add(1)
 		c.ProcessRequestMessage(handler, message)
 	}
-}
-
-func (c *client) readMessage() (*ldap.LDAPMessage, error) {
-	if c.srv.ReadTimeout > 0 {
-		c.rwc.SetReadDeadline(time.Now().Add(c.srv.ReadTimeout))
-	}
-
-	//Read client input as a ASN1/BER binary message
-	messagePacket, err := readMessagePacket(c.br)
-	if err != nil {
-		return nil, err
-	}
-
-	//Convert ASN1 binaryMessage to a ldap Message
-	message, err := messagePacket.readMessage()
-	if err != nil {
-		return nil, err
-	}
-
-	return &message, nil
 }
 
 // close closes client,

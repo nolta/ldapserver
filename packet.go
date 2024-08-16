@@ -7,42 +7,20 @@ import (
 	ldap "github.com/lor00x/goldap/message"
 )
 
-type messagePacket struct {
-	bytes []byte
-}
-
-func readMessagePacket(br *bufio.Reader) (*messagePacket, error) {
-	var err error
-	var bytes *[]byte
-	bytes, err = readLdapMessageBytes(br)
-
-	if err == nil {
-		messagePacket := &messagePacket{bytes: *bytes}
-		return messagePacket, err
+func readMessage(br *bufio.Reader) (*ldap.LDAPMessage, error) {
+	bytes, err := readLdapMessageBytes(br)
+	if err != nil {
+		return nil, err
 	}
-	return &messagePacket{}, err
 
-}
-
-func (msg *messagePacket) readMessage() (m ldap.LDAPMessage, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("invalid packet received hex=%x, %#v", msg.bytes, r)
+			err = fmt.Errorf("invalid packet received hex=%x, %#v", bytes, r)
 		}
 	}()
 
-	return decodeMessage(msg.bytes)
-}
-
-func decodeMessage(bytes []byte) (ret ldap.LDAPMessage, err error) {
-	defer func() {
-		if e := recover(); e != nil {
-			err = fmt.Errorf("%s", e)
-		}
-	}()
-	zero := 0
-	ret, err = ldap.ReadLDAPMessage(ldap.NewBytes(zero, bytes))
-	return
+	msg, err := ldap.ReadLDAPMessage(ldap.NewBytes(0, *bytes))
+	return &msg, err
 }
 
 // BELLOW SHOULD BE IN ROOX PACKAGE
