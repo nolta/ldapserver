@@ -87,7 +87,7 @@ const SearchRequestHomeSubtree = 2
 
 // Extended operation responseName and requestName
 const (
-	NoticeOfDisconnection   ldap.LDAPOID = "1.3.6.1.4.1.1466.2003"
+	NoticeOfDisconnection   ldap.LDAPOID = "1.3.6.1.4.1.1466.20036"
 	NoticeOfCancel          ldap.LDAPOID = "1.3.6.1.1.8"
 	NoticeOfStartTLS        ldap.LDAPOID = "1.3.6.1.4.1.1466.20037"
 	NoticeOfWhoAmI          ldap.LDAPOID = "1.3.6.1.4.1.4203.1.11.3"
